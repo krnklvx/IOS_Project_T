@@ -7,6 +7,6 @@ struct SweetTrackApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: Order.self) //хранилище для order для Query и modelContext
+        .modelContainer(for: [Order.self, Recipe.self, RecipeIngredient.self, RecipeStep.self])
     }
 }

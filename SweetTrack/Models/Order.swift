@@ -23,7 +23,10 @@ final class Order {
     var notes: String
     var createdAt: Date
 
-    init(id: UUID = UUID(),
+    var recipe: Recipe?
+
+    init(
+        id: UUID = UUID(),
         clientName: String,
         productType: String,
         quantityOrWeight: String,
@@ -32,8 +35,9 @@ final class Order {
         cost: Double,
         status: OrderStatus = .new,
         notes: String = "",
-        createdAt: Date = .now) {
-        
+        createdAt: Date = .now,
+        recipe: Recipe? = nil
+    ) {
         self.id = id
         self.clientName = clientName
         self.productType = productType
@@ -44,6 +48,7 @@ final class Order {
         self.status = status
         self.notes = notes
         self.createdAt = createdAt
+        self.recipe = recipe
     }
 
     var profit: Double {

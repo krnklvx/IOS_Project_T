@@ -5,102 +5,99 @@ struct OrderListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Order.deadline, order: .forward) private var orders: [Order]
 
-    @StateObject private var viewModel = OrderListViewModel()
+    @State private var searchText = ""
     @State private var isCreateSheetPresented = false
     @State private var deadlineSort: DeadlineSort = .nearestFirst
+
+    private var filteredOrders: [Order] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return orders }
+        return orders.filter {
+            $0.clientName.lowercased().contains(q) || $0.productType.lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                switch viewModel.state {
-                case .initial:
-                    EmptyView()
-                case .loading:
-                    ProgressView("Загрузка...")
-                case .failure(let message):
-                    ContentUnavailableView(
-                        "Ошибка",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(message)
-                    )
-                case .loaded(let filteredOrders):
-                    if filteredOrders.isEmpty {
-                        if orders.isEmpty {
-                            ContentUnavailableView(
-                                "Заказов пока нет",
-                                systemImage: "birthday.cake",
-                                description: Text("Нажми + и создай первый заказ.")
-                            )
-                        } else {
-                            ContentUnavailableView(
-                                "Ничего не найдено",
-                                systemImage: "magnifyingglass",
-                                description: Text("Попробуй другой текст в поиске.")
-                            )
-                        }
+                if filteredOrders.isEmpty {
+                    if orders.isEmpty {
+                        ContentUnavailableView(
+                            "Заказов пока нет",
+                            systemImage: "birthday.cake",
+                            description: Text("Нажми + и создай первый заказ.")
+                        )
                     } else {
-                        let visibleOrders = sortedOrders(filteredOrders)
-                        List {
-                            Section {
-                                DashboardCardView(orders: filteredOrders)
-                                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                                    .listRowBackground(Color.clear)
-                            }
+                        ContentUnavailableView(
+                            "Ничего не найдено",
+                            systemImage: "magnifyingglass",
+                            description: Text("Попробуй другой текст в поиске.")
+                        )
+                    }
+                } else {
+                    let visibleOrders = sortedOrders(filteredOrders)
+                    List {
+                        Section {
+                            DashboardCardView(orders: filteredOrders)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                                .listRowBackground(Color.clear)
+                        }
 
-                            Section("Заказы") {
-                                ForEach(visibleOrders) { order in
-                                    NavigationLink {
-                                        OrderDetailView(order: order)
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                Text(order.clientName)
-                                                    .font(.headline)
-                                                Spacer()
-                                                Text(order.status.rawValue)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 4)
-                                                    .background(.blue)
-                                                    .clipShape(Capsule())
-                                            }
-
-                                            Text(order.productType)
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-
-                                            HStack {
-                                                Label {
-                                                    Text(order.deadline, format: .dateTime.day().month().year())
-                                                } icon: {
-                                                    Image(systemName: "calendar")
-                                                }
-
-                                                Spacer()
-
-                                                Text("Прибыль: \(money(order.profit))")
-                                                    .font(.caption)
-                                                    .foregroundStyle(order.profit >= 0 ? .green : .red)
-                                            }
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                        Section("Заказы") {
+                            ForEach(visibleOrders) { order in
+                                NavigationLink {
+                                    OrderDetailView(order: order)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text(order.clientName)
+                                                .font(.headline)
+                                            Spacer()
+                                            Text(order.status.rawValue)
+                                                .font(.caption)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(AppTheme.accent)
+                                                .clipShape(Capsule())
                                         }
-                                        .padding(.vertical, 6)
+
+                                        Text(order.productType)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+
+                                        HStack {
+                                            Label {
+                                                Text(order.deadline, format: .dateTime.day().month().year())
+                                            } icon: {
+                                                Image(systemName: "calendar")
+                                            }
+
+                                            Spacer()
+
+                                            Text("Прибыль: \(AppTheme.rubles(order.profit))")
+                                                .font(.caption)
+                                                .foregroundStyle(order.profit >= 0 ? .green : .red)
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                     }
-                                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                    .listRowBackground(Color.clear)
+                                    .padding(.vertical, 6)
                                 }
-                                .onDelete { offsets in
-                                    deleteOrders(at: offsets, from: visibleOrders)
-                                }
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowBackground(Color.clear)
+                            }
+                            .onDelete { offsets in
+                                deleteOrders(at: offsets, from: visibleOrders)
                             }
                         }
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(AppTheme.softBackground)
                 }
             }
             .navigationTitle("SweetTrack")
-            .searchable(text: $viewModel.searchText, prompt: "Поиск по клиенту или изделию")
+            .searchable(text: $searchText, prompt: "Поиск по клиенту или изделию")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -126,15 +123,7 @@ struct OrderListView: View {
                     OrderFormView(order: nil)
                 }
             }
-            .onAppear {
-                viewModel.loadData(from: orders)
-            }
-            .onChange(of: viewModel.searchText) { _, _ in
-                viewModel.loadData(from: orders)
-            }
-            .onChange(of: orders.count) { _, _ in
-                viewModel.loadData(from: orders)
-            }
+            .background(AppTheme.softBackground)
         }
     }
 
@@ -151,10 +140,6 @@ struct OrderListView: View {
         case .latestFirst:
             return orders.sorted { $0.deadline > $1.deadline }
         }
-    }
-
-    private func money(_ value: Double) -> String {
-        "\(value.formatted(.number.precision(.fractionLength(0...2)))) ₽"
     }
 }
 
@@ -183,15 +168,15 @@ private struct DashboardCardView: View {
             HStack {
                 stat("Заказов", "\(orders.count)")
                 Spacer()
-                stat("Выручка", money(totalRevenue))
+                stat("Выручка", AppTheme.rubles(totalRevenue))
                 Spacer()
-                stat("Прибыль", money(totalProfit))
+                stat("Прибыль", AppTheme.rubles(totalProfit))
             }
         }
         .padding()
         .background(
             LinearGradient(
-                colors: [Color.blue.opacity(0.15), Color.purple.opacity(0.10)],
+                colors: [AppTheme.accent.opacity(0.22), AppTheme.accent.opacity(0.08)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
@@ -207,9 +192,5 @@ private struct DashboardCardView: View {
             Text(value)
                 .font(.subheadline.weight(.semibold))
         }
-    }
-
-    private func money(_ value: Double) -> String {
-        "\(value.formatted(.number.precision(.fractionLength(0...2)))) ₽"
     }
 }

@@ -8,6 +8,11 @@ struct ContentView: View {
                     Label("Заказы", systemImage: "list.bullet.rectangle")
                 }
 
+            RecipeListView()
+                .tabItem {
+                    Label("Мои рецепты", systemImage: "heart.fill")
+                }
+
             ProfilePlaceholderView()
                 .tabItem {
                     Label("Профиль", systemImage: "person.crop.circle")
@@ -15,8 +20,9 @@ struct ContentView: View {
 
             IdeasPlaceholderView()
                 .tabItem {
-                    Label("Идеи", systemImage: "sparkles")
+                    Label("Идеи", systemImage: "lightbulb.fill")
                 }
         }
+        .tint(AppTheme.accent)
     }
 }

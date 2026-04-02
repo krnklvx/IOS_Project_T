@@ -5,6 +5,9 @@ struct OrderFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    //запрос к бд получение рецептов отсорт по имени
+    @Query(sort: \Recipe.name, order: .forward) private var recipes: [Recipe]
+
     private let order: Order?
 
     @StateObject private var viewModel = OrderFormViewModel()
@@ -14,55 +17,37 @@ struct OrderFormView: View {
     }
 
     var body: some View {
-        Group {
-            switch viewModel.state {
-            case .initial:
-                ProgressView("Подготовка формы...")
-
-            case .loading:
-                ProgressView("Загрузка...")
-
-            case .saving:
-                ProgressView("Сохраняем...")
-
-            case .failure(let message):
-                formView
-                    .overlay(alignment: .top) {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .padding(.top, 4)
-                    }
-
-            case .editing:
-                formView
-            }
-        }
-        .navigationTitle(order == nil ? "Новый заказ" : "Редактировать")
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Отмена") {
-                    dismiss()
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Сохранить") {
-                    save()
-                }
-                .disabled(!viewModel.isFormValid)
-            }
-        }
-        .onAppear {
-            viewModel.setup(with: order)
-        }
-    }
-
-    private var formView: some View {
         Form {
+            if let err = viewModel.saveError {
+                Section {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section("Клиент и заказ") {
                 TextField("Имя клиента", text: $viewModel.clientName)
-                TextField("Тип изделия (торт, капкейки...)", text: $viewModel.productType)
-                TextField("Вес или количество", text: $viewModel.quantityOrWeight)
+
+                Picker("Изделие", selection: $viewModel.recipeID) { //вручную или автомат
+                    Text("Вручную").tag(Optional<UUID>.none)
+                    ForEach(recipes) { recipe in
+                        Text(recipe.name).tag(Optional.some(recipe.id))
+                    }
+                }
+
+                if viewModel.recipeID != nil {
+                    HStack {
+                        TextField(recipeUnitTitle + " заказа", text: $viewModel.recipeAmountText)
+                            .keyboardType(.decimalPad)
+                        Text(recipeUnitSuffix)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    TextField("Тип изделия (торт, капкейки...)", text: $viewModel.productType)
+                    TextField("Вес или количество", text: $viewModel.quantityOrWeight)
+                }
+
                 DatePicker("Дата выдачи", selection: $viewModel.deadline, displayedComponents: [.date, .hourAndMinute])
             }
 
@@ -83,12 +68,40 @@ struct OrderFormView: View {
                     .lineLimit(3...6)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(AppTheme.softBackground)
+        .navigationTitle(order == nil ? "Новый заказ" : "Редактировать")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Отмена") {
+                    dismiss()
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Сохранить") {
+                    if viewModel.save(order: order, recipes: recipes, modelContext: modelContext) {
+                        dismiss()
+                    }
+                }
+                .disabled(!viewModel.isFormValid) //неактивна если не валидна
+            }
+        }
+        .onAppear {
+            viewModel.load(from: order) //при открытии экрана или загрузка данных в форму или поля очищаются
+        }
     }
 
-    private func save() {
-        let saved = viewModel.save(order: order, modelContext: modelContext)
-        if saved {
-            dismiss()
-        }
+    //находит выбранный рецепт
+    private var selectedRecipe: Recipe? {
+        recipes.first { $0.id == viewModel.recipeID }
+    }
+
+    private var recipeUnitSuffix: String {
+        selectedRecipe?.baseUnitEnum.shortTitle ?? ""
+    }
+
+    private var recipeUnitTitle: String {
+        guard let r = selectedRecipe else { return "Количество" }
+        return r.baseUnitEnum == .grams ? "Вес" : "Кол-во"
     }
 }
